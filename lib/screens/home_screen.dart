@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/todo_provider.dart';
+import '../services/auth_service.dart';
 import '../widgets/todo_list.dart';
 import '../widgets/add_todo_modal.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,11 +30,64 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    final authService = Provider.of<AuthService>(context);
+    
+    // Redirect to login screen if not authenticated
+    if (!authService.isLoggedIn) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
+    final user = authService.currentUser;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Todo App'),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
+        actions: [
+          PopupMenuButton<void>(
+            icon: CircleAvatar(
+              backgroundImage: user?.photoURL != null 
+                  ? NetworkImage(user!.photoURL!) 
+                  : null,
+              child: user?.photoURL == null 
+                  ? Text(user?.displayName?.isNotEmpty == true
+                      ? user!.displayName![0].toUpperCase()
+                      : '?')
+                  : null,
+            ),
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<void>(
+                child: ListTile(
+                  leading: const Icon(Icons.person),
+                  title: Text(user?.displayName ?? 'User'),
+                  subtitle: Text(user?.email ?? ''),
+                ),
+                enabled: false,
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem<void>(
+                child: const ListTile(
+                  leading: Icon(Icons.logout),
+                  title: Text('Sign Out'),
+                ),
+                onTap: () async {
+                  await authService.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
